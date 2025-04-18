@@ -108,3 +108,15 @@ class BMP280():
     # normal mode
     def poweron(self):
         self.setReg(0xF4, 0x2F)
+
+    @property
+    def temp(self):
+        return self.getTemp()
+
+    @property
+    def press(self):
+        return self.getPress()
+
+    @property
+    def alt(self):
+        return self.getAltitude()

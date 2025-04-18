@@ -1,6 +1,6 @@
-#include<SPI.h>
-#include<RF24.h>
-#include<ArduinoJson.h>
+//#include <SPI.h>
+//#include <RF24.h>
+//#include<ArduinoJson.h>
 
 RF24 radio(17,5);
 

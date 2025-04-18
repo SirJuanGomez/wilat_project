@@ -87,9 +87,11 @@ def read_data():
         aceleracion = mpu.accel
         gyroscopio = mpu.gyro
         magnetometro = mpu.mag
-        temperatura, presion = bmp.read_compensated_data()
+        temperatura = bmp.temp
+        presion = bmp.press
+        altitud = bmp.alt
         uv_value = uv_adc.read()
-        return aceleracion, gyroscopio, magnetometro, temperatura, presion, uv_value
+        return aceleracion, gyroscopio, magnetometro, temperatura, presion,altitud , uv_value
     except Exception as e:
         print("Error en read_data:", e)
         return None
