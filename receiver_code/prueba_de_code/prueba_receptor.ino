@@ -1,90 +1,100 @@
-//#include <SPI.h>
-//#include <RF24.h>
-//#include<ArduinoJson.h>
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+#include <IRremote.h>
 
-RF24 radio(17,5);
+RF24 radio(4, 5);  // CE, CSN
+const byte direccion[5] = {0x01, 0x02, 0x03, 0x04, 0x05};
 
-byte direccion[6] = {0x01,0x02,0x03,0x04,0x05,0x06};
+int recv_pin = 2;  // Pin del receptor IR
+IRrecv irrecv(recv_pin);
+decode_results results;
 
-struct sensor_data
-{
-    float aceleracion[3];
-    float gyroscopio[3];
-    int magnetometro[3];
-    float temperatura;
-    float presion;
-    float radiacion_uv;
-};
+float data[15];    // Almacena los 15 datos
+uint8_t index = 0; // Índice actual de recepción
+bool graficar = false;  // Flag que indica si se debe graficar o recibir datos
 
-void setup(){
-    Serial.begin(115200);
-    radio.begin();
-    radio.openReadingPipe(1, direccion);
-    radio.setPALevel(RF24_PA_HIGH);
-    radio.startListening();
-
-    Serial.println("Escuchando datos...");
+void setup() {
+  Serial.begin(115200);  // Inicia la comunicación Serial con el PC
+  irrecv.enableIRIn();   // Habilitar el receptor IR
+  radio.begin();
+  radio.setChannel(30);
+  radio.setPALevel(RF24_PA_HIGH);
+  radio.setDataRate(RF24_250KBPS);
+  radio.openReadingPipe(1, direccion);
+  radio.startListening();
 }
 
-void loop(){
-    if (radio.avaliable()){
-        char recived_data[32] = "";
-        radio.read(&recived_data, sizeof(recived_data));
-        StaticJsonDocument<200> doc;
-        DeserializationError error = deserializeJson(doc, datosRecibidos);
-        
-        if (error){
-            Serial.println("Error al leer transmision: ");
-            Serial.println(error.fstr());
-            return ;
-        }
+void loop() {
+  // Revisar si se recibe un comando IR para graficar
+  if (irrecv.decode(&results)) {
+    long int decCode = results.value;
+    irrecv.resume();  // Recibir el siguiente código
 
-        SensorData data;
-        data.aceleracion[0] = doc["aceleracion"][0];
-        data.aceleracion[1] = doc["aceleracion"][1];
-        data.aceleracion[2] = doc["aceleracion"][2];
-        data.gyroscopio[0] = doc["gyroscopio"][0];
-        data.gyroscopio[1] = doc["gyroscopio"][1];
-        data.gyroscopio[2] = doc["gyroscopio"][2];
-        data.magnetometro[0] = doc["magnetometro"][0];
-        data.magnetometro[1] = doc["magnetometro"][1];
-        data.magnetometro[2] = doc["magnetometro"][2];
-        data.temperatura = doc["temperatura"];
-        data.presion = doc["presion"];
-        data.radiacion_uv = doc["radiacion_uv"];
-
-        // Escribe los datos recividos
-
-        Serial.println("Datos recibidos:");
-        Serial.print("Aceleracion: ");
-        Serial.print(data.aceleracion[0]);
-        Serial.print(", ");
-        Serial.print(data.aceleracion[1]);
-        Serial.print(", ");
-        Serial.println(data.aceleracion[2]);
-
-        Serial.print("Giroscopio: ");
-        Serial.print(data.gyroscopio[0]);
-        Serial.print(", ");
-        Serial.print(data.gyroscopio[1]);
-        Serial.print(", ");
-        Serial.println(data.gyroscopio[2]);
-
-        Serial.print("Magnetometro: ");
-        Serial.print(data.magnetometro[0]);
-        Serial.print(", ");
-        Serial.print(data.magnetometro[1]);
-        Serial.print(", ");
-        Serial.println(data.magnetometro[2]);
-
-        Serial.print("Temperatura: ");
-        Serial.println(data.temperatura);
-        Serial.print("Presion: ");
-        Serial.println(data.presion);
-        Serial.print("Radiacion UV: ");
-        Serial.println(data.radiacion_uv);
-
-        Serial.println();
-       
+    // Comprobar si el comando es el de "graficar"
+    if (decCode == 0x1234) {  // Suponiendo que el código IR para "graficar" es 0x1234
+      Serial.println("graficar");  // Enviar comando al PC
+      graficar = true;  // Activar flag de graficar
+      delay(1000);  // Evitar múltiples envíos del mismo comando
     }
+  }
+
+  // Si el flag de "graficar" está activado, no se reciben datos, solo se espera
+  if (graficar) {
+    return;  // Si estamos en modo graficar, no procesamos más datos
+  }
+
+  // Revisar si se reciben los datos del NRF24L01
+  if (radio.available()) {
+    char buffer[32] = {0};
+    radio.read(&buffer, sizeof(buffer));
+    float valor = atof(buffer);  // Convertimos a número
+    data[index] = valor;
+    index++;
+
+    if (index >= 15) {
+      // Ya tenemos todos los datos, enviar como JSON al PC
+      enviarComoJson();
+      index = 0;  // Resetear el índice para el siguiente conjunto de datos
+    }
+  }
+}
+
+void enviarComoJson() {
+  Serial.print("{");
+  Serial.print("\"aceleracion\":[");
+  Serial.print(data[0], 3); Serial.print(", ");
+  Serial.print(data[1], 3); Serial.print(", ");
+  Serial.print(data[2], 3); Serial.print("], ");
+
+  Serial.print("\"gyroscopio\":[");
+  Serial.print(data[3], 3); Serial.print(", ");
+  Serial.print(data[4], 3); Serial.print(", ");
+  Serial.print(data[5], 3); Serial.print("], ");
+
+  Serial.print("\"magnetometro\":[");
+  Serial.print(data[6], 3); Serial.print(", ");
+  Serial.print(data[7], 3); Serial.print(", ");
+  Serial.print(data[8], 3); Serial.print("], ");
+
+  Serial.print("\"temperatura\":");
+  Serial.print(data[9], 2); Serial.print(", ");
+
+  Serial.print("\"presion\":");
+  Serial.print(data[10], 2); Serial.print(", ");
+
+  Serial.print("\"altitud\":");
+  Serial.print(data[11], 2); Serial.print(", ");
+
+  Serial.print("\"radiacion_uv\":");
+  Serial.print(data[12], 2); Serial.print(", ");
+
+  Serial.print("\"gps\":{");
+  Serial.print("\"latitud\":");
+  Serial.print(data[13], 6); Serial.print(", ");
+  Serial.print("\"longitud\":");
+  Serial.print(data[14], 6);
+  Serial.print("}");
+
+  Serial.println("}");
 }

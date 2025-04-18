@@ -2,7 +2,7 @@ import json
 import plotly.graph_objects as go
 
 # Leer los datos desde el archivo JSON
-with open(r'3D_ploter_code\prueba_de_code\data_probe\trayectoria.json', 'r') as file:
+with open(r'3D_ploter_code\prueba_de_code\data_probe\trayectoria_json.json', 'r') as file:
     datos = json.load(file)
 
 # Extraer las coordenadas x, y y z
